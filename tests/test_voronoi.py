@@ -13,7 +13,8 @@ usage: python3 tests/test_voronoi.py [OPENSCAD] [--update]
 5. Five fixed cases keep the volumes in tests/volumes.txt; they are the
    volumes Felipe Sanches's original OpenSCAD_Voronoi_Generator gives for the
    same calls. --update rewrites the file.
-6. Every example evaluates without warnings, and one site is refused.
+6. Every example evaluates without warnings, and one site is refused; no
+   other render prints an error or warning.
 """
 
 import hashlib
@@ -31,13 +32,24 @@ PROBE = os.path.join(ROOT, "tests", "probe.scad")
 VOLUMES = os.path.join(ROOT, "tests", "volumes.txt")
 
 
-def run(openscad, out, defines, export="binstl", scad=PROBE):
+ERRORS = []
+
+
+def run(openscad, out, defines, export="binstl", scad=PROBE, refused=False):
     if os.path.exists(out):
         os.remove(out)  # an empty result writes nothing; never read a stale file
     cmd = [openscad, "--hardwarnings", "--export-format", export, "-o", out]
     for k, v in defines.items():
         cmd += ["-D", f"{k}={v}"]
-    return subprocess.run(cmd + [scad], capture_output=True, text=True)
+    r = subprocess.run(cmd + [scad], capture_output=True, text=True)
+    # A failed assert leaves the exit status at 0 and the top level empty, which
+    # "spill" reads as a pass, so any error or warning fails the run. An echo
+    # export prints them into its file, not to stderr.
+    text = r.stderr + (open(out).read() if export == "echo" and os.path.exists(out) else "")
+    if not refused:
+        ERRORS.extend(f"{os.path.basename(scad)} {defines}: {l}" for l in text.splitlines()
+                      if l.startswith(("ERROR", "WARNING")))
+    return r
 
 
 def mesh(path):
@@ -180,8 +192,9 @@ def main():
         report(f"examples/{f} evaluates", r.returncode == 0 and not bad, bad[:1] or "clean")
     one = os.path.join(tmp, "one.scad")
     open(one, "w").write(f"use <{ROOT}/voronoi.scad>\nvoronoi([[0, 0]]);\n")
-    r = run(openscad, os.path.join(tmp, "one.csg"), {}, export="csg", scad=one)
+    r = run(openscad, os.path.join(tmp, "one.csg"), {}, export="csg", scad=one, refused=True)
     report("a single site is refused", "at least two points" in r.stderr, "refused" if "at least two" in r.stderr else "accepted")
+    report("no other render printed an error or warning", not ERRORS, "; ".join(ERRORS[:3]) or "none")
 
     print("all checks passed" if not failures else f"{len(failures)} failed")
     sys.exit(1 if failures else 0)
