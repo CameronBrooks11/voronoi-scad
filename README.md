@@ -66,8 +66,11 @@ each cell as a polygon by clipping, which is about 9 times faster at 400 sites
 - `voronoi_polygon()` stays inside its border and its rim is solid;
 - five fixed cases keep the volumes in `tests/volumes.txt`, which are the
   volumes OpenSCAD_Voronoi_Generator gives for the same calls;
-- every example evaluates without warnings, and a single site is refused.
+- every example evaluates without warnings, and a single site is refused;
+- no other render prints an error or warning.
 
+`just check` checks the `.scad` files are formatted with
+[topiary](https://github.com/tweag/topiary) 0.8.0; `just fmt` formats them.
 `just images` renders the pictures.
 
 ## Licence
